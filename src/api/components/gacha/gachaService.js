@@ -4,16 +4,19 @@ const prizeRepository = require('../prize/prizeRepository');
 const MAX_DAILY_GACHA = 5;
 
 const rollGacha = (prizes) => {
+  // Hanya hadiah yang kuotanya belum habis
   const available = prizes.filter((p) => p.winnersCount < p.quota);
 
   const totalPrizeWeight = available.reduce((sum, p) => sum + p.weight, 0);
 
+  // Bobot "tidak menang" = 2x total bobot hadiah (~33% chance menang)
   const noPrizeWeight = totalPrizeWeight * 2;
   const totalWeight = totalPrizeWeight + noPrizeWeight;
 
   const rand = Math.random() * totalWeight;
 
   let cumulative = 0;
+  // eslint-disable-next-line no-restricted-syntax
   for (const prize of available) {
     cumulative += prize.weight;
     if (rand < cumulative) return prize;
@@ -50,10 +53,8 @@ const performGacha = async ({ userId, username }) => {
   const prizes = await prizeRepository.getAllPrizes();
   const wonPrize = rollGacha(prizes);
 
-  // Cara paling aman mengambil ID (Mendukung _id dari MongoDB atau id biasa)
   const winningPrizeId = wonPrize ? wonPrize._id || wonPrize.id : null;
 
-  // Pastikan wonPrize DAN ID-nya benar-benar ada sebelum melakukan update ke database
   if (wonPrize && winningPrizeId) {
     await prizeRepository.incrementWinner(winningPrizeId);
   }
