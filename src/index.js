@@ -1,24 +1,43 @@
-const { env, port } = require('./core/config');
-const logger = require('./core/logger')('app');
-const server = require('./core/server');
+require('dotenv').config();
+require('express-async-errors');
 
-const app = server.listen(port, (err) => {
-  if (err) {
-    logger.fatal(err, 'Failed to start the server.');
-    process.exit(1);
-  } else {
-    logger.info(`Server runs at port ${port} in ${env} environment`);
-  }
+const express = require('express');
+const cors = require('cors');
+const bodyParser = require('body-parser');
+const mongoose = require('mongoose');
+
+const routes = require('./api/routes');
+const { seedPrizes } = require('./utils/seed');
+
+const app = express();
+
+app.use(cors());
+app.use(bodyParser.json());
+
+app.use('/api', routes);
+
+// Global error handler
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  res.status(err.statusCode || 500).json({
+    success: false,
+    message: err.message || 'Internal Server Error',
+  });
 });
 
-process.on('uncaughtException', (err) => {
-  logger.fatal(err, 'Uncaught exception.');
+const PORT = process.env.PORT || 5000;
+const { DB_CONNECTION } = process.env;
+const { DB_NAME } = process.env;
 
-  // Shutdown the server gracefully
-  app.close(() => process.exit(1));
-
-  // If a graceful shutdown is not achieved after 1 second,
-  // shut down the process completely
-  setTimeout(() => process.abort(), 1000).unref();
-  process.exit(1);
-});
+mongoose
+  .connect(DB_CONNECTION, { dbName: DB_NAME })
+  .then(async () => {
+    console.log('Connected to MongoDB');
+    await seedPrizes();
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error('Failed to connect to MongoDB', err);
+  });
